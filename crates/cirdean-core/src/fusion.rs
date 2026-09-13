@@ -23,9 +23,7 @@ pub fn quad_agreement(a: Quad, b: Quad, max_corner_distance: f32) -> f32 {
         return 0.0;
     }
 
-    let pairs = a.points().into_iter().zip(b.points());
-    let mean_distance = pairs.map(|(left, right)| left.distance(right)).sum::<f32>() / 4.0;
-
+    let mean_distance = a.average_corner_distance(b);
     (1.0 - mean_distance / max_corner_distance).clamp(0.0, 1.0)
 }
 
@@ -41,11 +39,19 @@ fn blend_point(a: Point, b: Point, weight_a: f32, weight_b: f32) -> Point {
     )
 }
 
+fn strongest_optional(first: Option<f32>, second: Option<f32>) -> Option<f32> {
+    match (first, second) {
+        (Some(left), Some(right)) => Some(left.max(right)),
+        (Some(value), None) | (None, Some(value)) => Some(value),
+        (None, None) => None,
+    }
+}
+
 /// Fuse two detector results when their quadrilaterals agree sufficiently.
 ///
-/// Each detector's confidence becomes its geometric blend weight. The final
-/// metrics preserve detector evidence while making cross-detector agreement an
-/// explicit part of the result.
+/// Each detector's confidence becomes its geometric blend weight. Agreement is
+/// evidence produced by fusion, not a prerequisite imposed on a single
+/// detector before the fallback has even run.
 pub fn fuse_pair(first: Detection, second: Detection, config: FusionConfig) -> Option<Detection> {
     let agreement = quad_agreement(first.quad, second.quad, config.max_corner_distance);
     if agreement < config.minimum_agreement {
@@ -56,13 +62,33 @@ pub fn fuse_pair(first: Detection, second: Detection, config: FusionConfig) -> O
     let weight_second = second.confidence().max(0.001);
     let total = weight_first + weight_second;
 
-    let a = first.quad.points();
-    let b = second.quad.points();
+    let first_points = first.quad.points();
+    let second_points = second.quad.points();
     let quad = Quad::new(
-        blend_point(a[0], b[0], weight_first, weight_second),
-        blend_point(a[1], b[1], weight_first, weight_second),
-        blend_point(a[2], b[2], weight_first, weight_second),
-        blend_point(a[3], b[3], weight_first, weight_second),
+        blend_point(
+            first_points[0],
+            second_points[0],
+            weight_first,
+            weight_second,
+        ),
+        blend_point(
+            first_points[1],
+            second_points[1],
+            weight_first,
+            weight_second,
+        ),
+        blend_point(
+            first_points[2],
+            second_points[2],
+            weight_first,
+            weight_second,
+        ),
+        blend_point(
+            first_points[3],
+            second_points[3],
+            weight_first,
+            weight_second,
+        ),
     );
 
     let metrics = DetectionMetrics {
@@ -72,11 +98,11 @@ pub fn fuse_pair(first: Detection, second: Detection, config: FusionConfig) -> O
         geometry_score: (first.metrics.geometry_score * weight_first
             + second.metrics.geometry_score * weight_second)
             / total,
-        temporal_score: first
-            .metrics
-            .temporal_score
-            .max(second.metrics.temporal_score),
-        agreement_score: agreement,
+        temporal_score: strongest_optional(
+            first.metrics.temporal_score,
+            second.metrics.temporal_score,
+        ),
+        agreement_score: Some(agreement),
     };
 
     Some(Detection {
@@ -93,17 +119,17 @@ mod tests {
     fn detection(offset: f32, source: DetectionSource) -> Detection {
         Detection {
             quad: Quad::new(
-                Point::new(0.0 + offset, 0.0),
+                Point::new(offset, 0.0),
                 Point::new(100.0 + offset, 0.0),
                 Point::new(100.0 + offset, 200.0),
-                Point::new(0.0 + offset, 200.0),
+                Point::new(offset, 200.0),
             ),
             source,
             metrics: DetectionMetrics {
                 edge_score: 0.9,
                 geometry_score: 0.9,
-                temporal_score: 0.8,
-                agreement_score: 0.0,
+                temporal_score: Some(0.8),
+                agreement_score: None,
             },
         }
     }
@@ -118,7 +144,7 @@ mod tests {
         .expect("close detections should fuse");
 
         assert_eq!(result.source, DetectionSource::Fused);
-        assert!(result.metrics.agreement_score > 0.8);
+        assert!(result.metrics.agreement_score.expect("fusion adds agreement") > 0.8);
     }
 
     #[test]

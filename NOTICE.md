@@ -2,11 +2,11 @@
 
 Cirdean is an independent Rust implementation informed by publicly available open-source document scanning projects.
 
-## Upstream inspiration
+## Upstream research
 
-- **Hbot** by Abhishek Dhital, MIT licensed: camera auto-capture concepts, document enhancement ideas, and gutter-aware book scanning concepts.
-- **Camscan** by Suhren, MIT licensed: configurable camera abstractions and Hough-line / quadrilateral document detection concepts.
+- **Hbot** (`abhishekdhital/hbot`), MIT licensed. Studied for multi-path contour detection, stable-frame auto-capture, page-turn re-arming, illumination normalization, and gutter-aware book scanning. Upstream license: `Copyright (c) 2026 KibuSpace`.
+- **Camscan** (`suhren/camscan`), MIT licensed. Studied for camera abstraction, Hough-line detection, line intersections, graph-based quadrilateral construction, candidate scoring, and detector fixture tests. Upstream license: `Copyright (c) 2023 Adam Suhren Gustafsson`.
 
-At the initial Cirdean bootstrap, no upstream source file is copied verbatim into this repository. If future work ports or adapts substantial upstream code, the relevant upstream copyright and MIT license notices must be preserved with the derived code as required by the MIT License.
+Cirdean currently re-implements these algorithmic ideas independently rather than copying upstream source files verbatim. If future work ports or adapts a substantial portion of upstream source, the applicable upstream copyright and MIT permission notice must be preserved with that derived material.
 
-See `docs/upstream.md` for the engineering mapping used by Cirdean.
+See `docs/upstream.md` and `docs/upstream-algorithm-study.md` for the engineering mapping used by Cirdean.
