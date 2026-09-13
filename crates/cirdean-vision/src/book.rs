@@ -10,7 +10,9 @@ pub struct GutterEstimate {
 ///
 /// The darkest smoothed vertical band in the central 35-65% of the spread is a
 /// useful candidate for the binding shadow, but it should not be treated as
-/// truth when the center has little luminance contrast.
+/// truth when the center has little luminance contrast. A broad dark gutter can
+/// create a flat minimum after smoothing, so Cirdean returns the center of that
+/// minimum plateau instead of whichever edge happens to compare first.
 pub fn estimate_gutter(image: &GrayImage) -> Option<GutterEstimate> {
     let (width, height) = image.dimensions();
     if width < 20 || height == 0 {
@@ -44,10 +46,28 @@ pub fn estimate_gutter(image: &GrayImage) -> Option<GutterEstimate> {
         .max(low + 1)
         .min(width);
     let search = &smooth[low as usize..high as usize];
-    let (relative_index, minimum) = search
+    let (minimum_index, minimum) = search
         .iter()
         .enumerate()
         .min_by(|(_, left), (_, right)| left.total_cmp(right))?;
+
+    // Sliding-window smoothing often turns a wide binding shadow into a flat
+    // minimum. Expand around the first minimum and use the plateau midpoint so
+    // the estimate stays centered on the binding rather than biased left/right.
+    let tolerance = minimum.abs().max(1.0) * 1.0e-5;
+    let mut plateau_left = minimum_index;
+    while plateau_left > 0 && (search[plateau_left - 1] - *minimum).abs() <= tolerance {
+        plateau_left -= 1;
+    }
+
+    let mut plateau_right = minimum_index;
+    while plateau_right + 1 < search.len()
+        && (search[plateau_right + 1] - *minimum).abs() <= tolerance
+    {
+        plateau_right += 1;
+    }
+
+    let relative_index = (plateau_left + plateau_right) / 2;
     let mean = search.iter().sum::<f32>() / search.len() as f32;
     let confidence = if mean <= f32::EPSILON {
         0.0
@@ -76,7 +96,14 @@ mod tests {
         }
 
         let estimate = estimate_gutter(&image).expect("gutter should be estimated");
-        assert!((estimate.x as i32 - 130).abs() <= 6);
+        assert!((estimate.x as i32 - 130).abs() <= 2);
         assert!(estimate.confidence > 0.15);
+    }
+
+    #[test]
+    fn uniform_center_has_no_gutter_confidence() {
+        let image = GrayImage::from_pixel(300, 200, Luma([180]));
+        let estimate = estimate_gutter(&image).expect("geometry still allows an estimate");
+        assert!(estimate.confidence <= f32::EPSILON);
     }
 }
