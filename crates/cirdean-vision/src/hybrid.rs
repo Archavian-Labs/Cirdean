@@ -32,11 +32,7 @@ pub struct HybridDetector {
 }
 
 impl HybridDetector {
-    pub const fn new(
-        contour: ContourDetector,
-        hough: HoughDetector,
-        config: HybridConfig,
-    ) -> Self {
+    pub const fn new(contour: ContourDetector, hough: HoughDetector, config: HybridConfig) -> Self {
         Self {
             contour,
             hough,
@@ -58,9 +54,9 @@ impl Detector<GrayImage> for HybridDetector {
 
     fn detect(&mut self, frame: &GrayImage) -> Result<Option<Detection>, Self::Error> {
         let contour = self.contour.detect(frame)?;
-        if contour.is_some_and(|detection| {
-            detection.confidence() >= self.config.fast_accept_confidence
-        }) {
+        if contour
+            .is_some_and(|detection| detection.confidence() >= self.config.fast_accept_confidence)
+        {
             return Ok(contour);
         }
 
@@ -74,8 +70,7 @@ impl Detector<GrayImage> for HybridDetector {
                     max_corner_distance: longest_side * self.config.fusion_corner_distance_ratio,
                     minimum_agreement: self.config.minimum_fusion_agreement,
                 };
-                fuse_pair(contour, hough, fusion)
-                    .or_else(|| Some(Self::stronger(contour, hough)))
+                fuse_pair(contour, hough, fusion).or_else(|| Some(Self::stronger(contour, hough)))
             }
         };
 

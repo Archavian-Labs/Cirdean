@@ -17,9 +17,7 @@ pub fn order_quad(points: [Point; 4]) -> Option<Quad> {
     let start = ordered
         .iter()
         .enumerate()
-        .min_by(|(_, left), (_, right)| {
-            (left.x + left.y).total_cmp(&(right.x + right.y))
-        })
+        .min_by(|(_, left), (_, right)| (left.x + left.y).total_cmp(&(right.x + right.y)))
         .map(|(index, _)| index)?;
     ordered.rotate_left(start);
 
@@ -93,8 +91,7 @@ pub fn geometry_score(
         (ratio_similarity(edges[0], edges[2]) + ratio_similarity(edges[1], edges[3])) * 0.5;
     let right_angle_score = orthogonality_score(quad);
 
-    (0.45 * area_score + 0.30 * right_angle_score + 0.25 * opposite_balance)
-        .clamp(0.0, 1.0)
+    (0.45 * area_score + 0.30 * right_angle_score + 0.25 * opposite_balance).clamp(0.0, 1.0)
 }
 
 fn has_edge_near(edge_map: &GrayImage, x: i32, y: i32, radius: i32) -> bool {

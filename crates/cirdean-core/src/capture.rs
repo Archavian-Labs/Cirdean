@@ -72,8 +72,8 @@ impl AutoCaptureController {
         mut quality: CaptureQuality,
         scene_change_score: f32,
     ) -> Option<CaptureEvent> {
-        let scene_changed = scene_change_score.clamp(0.0, 1.0)
-            >= self.config.minimum_page_change_score;
+        let scene_changed =
+            scene_change_score.clamp(0.0, 1.0) >= self.config.minimum_page_change_score;
 
         match self.state {
             CaptureState::Searching => {
@@ -194,9 +194,11 @@ mod tests {
     fn scene_change_rearms_even_when_new_page_has_same_geometry() {
         let mut controller = AutoCaptureController::new(AutoCaptureConfig::default());
         controller.update(0, Some(detection(0.0)), excellent_quality(), 0.0);
-        assert!(controller
-            .update(700, Some(detection(0.0)), excellent_quality(), 0.0)
-            .is_some());
+        assert!(
+            controller
+                .update(700, Some(detection(0.0)), excellent_quality(), 0.0)
+                .is_some()
+        );
 
         assert_eq!(
             controller.update(800, Some(detection(0.0)), excellent_quality(), 0.8),
@@ -206,8 +208,10 @@ mod tests {
             controller.state(),
             CaptureState::Stabilizing { .. }
         ));
-        assert!(controller
-            .update(1_500, Some(detection(0.0)), excellent_quality(), 0.0)
-            .is_some());
+        assert!(
+            controller
+                .update(1_500, Some(detection(0.0)), excellent_quality(), 0.0)
+                .is_some()
+        );
     }
 }

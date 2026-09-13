@@ -116,11 +116,7 @@ fn find_intersections(
             let Some(point) = intersect_lines(first, second) else {
                 continue;
             };
-            if point.x < 0.0
-                || point.y < 0.0
-                || point.x > width as f32
-                || point.y > height as f32
-            {
+            if point.x < 0.0 || point.y < 0.0 || point.x > width as f32 || point.y > height as f32 {
                 continue;
             }
 
@@ -147,7 +143,9 @@ fn build_graph(intersections: &[Intersection], minimum_corner_distance: f32) -> 
     for first in 0..intersections.len() {
         for second in (first + 1)..intersections.len() {
             if shares_line(intersections[first], intersections[second])
-                && intersections[first].point.distance(intersections[second].point)
+                && intersections[first]
+                    .point
+                    .distance(intersections[second].point)
                     >= minimum_corner_distance
             {
                 graph[first].push(second);
@@ -291,11 +289,8 @@ impl Detector<GrayImage> for HoughDetector {
             .max_by(|left, right| left.confidence().total_cmp(&right.confidence()));
 
         Ok(best.map(|mut detection| {
-            detection.quad = scale_quad(
-                detection.quad,
-                scaled.source_scale_x,
-                scaled.source_scale_y,
-            );
+            detection.quad =
+                scale_quad(detection.quad, scaled.source_scale_x, scaled.source_scale_y);
             detection
         }))
     }

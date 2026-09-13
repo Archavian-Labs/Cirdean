@@ -32,12 +32,17 @@ pub fn estimate_gutter(image: &GrayImage) -> Option<GutterEstimate> {
             let start = (x as i32 - radius).max(0) as u32;
             let end = (x as i32 + radius).min(width as i32 - 1) as u32;
             let count = end - start + 1;
-            (start..=end).map(|sample| means[sample as usize]).sum::<f32>() / count as f32
+            (start..=end)
+                .map(|sample| means[sample as usize])
+                .sum::<f32>()
+                / count as f32
         })
         .collect();
 
     let low = ((width as f32 * 0.35).round() as u32).min(width - 1);
-    let high = ((width as f32 * 0.65).round() as u32).max(low + 1).min(width);
+    let high = ((width as f32 * 0.65).round() as u32)
+        .max(low + 1)
+        .min(width);
     let search = &smooth[low as usize..high as usize];
     let (relative_index, minimum) = search
         .iter()

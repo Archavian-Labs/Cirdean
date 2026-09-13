@@ -144,7 +144,13 @@ mod tests {
         .expect("close detections should fuse");
 
         assert_eq!(result.source, DetectionSource::Fused);
-        assert!(result.metrics.agreement_score.expect("fusion adds agreement") > 0.8);
+        assert!(
+            result
+                .metrics
+                .agreement_score
+                .expect("fusion adds agreement")
+                > 0.8
+        );
     }
 
     #[test]

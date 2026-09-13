@@ -120,11 +120,8 @@ impl Detector<GrayImage> for ContourDetector {
             .max_by(|left, right| left.confidence().total_cmp(&right.confidence()));
 
         Ok(best.map(|mut detection| {
-            detection.quad = scale_quad(
-                detection.quad,
-                scaled.source_scale_x,
-                scaled.source_scale_y,
-            );
+            detection.quad =
+                scale_quad(detection.quad, scaled.source_scale_x, scaled.source_scale_y);
             detection
         }))
     }
