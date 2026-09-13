@@ -5,9 +5,11 @@
 //! into the public detection model.
 
 pub mod detection;
+pub mod fusion;
 pub mod geometry;
 pub mod quality;
 
 pub use detection::{Detection, DetectionMetrics, DetectionSource, Detector};
+pub use fusion::{FusionConfig, fuse_pair, quad_agreement};
 pub use geometry::{Point, Quad};
 pub use quality::{CaptureQuality, QualityGate};
