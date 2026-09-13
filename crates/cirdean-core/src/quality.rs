@@ -16,11 +16,7 @@ impl CaptureQuality {
         let detection = self.detection_confidence.clamp(0.0, 1.0);
         let exposure = self.exposure_stability.clamp(0.0, 1.0);
 
-        0.30 * motion
-            + 0.25 * corners
-            + 0.20 * sharpness
-            + 0.15 * detection
-            + 0.10 * exposure
+        0.30 * motion + 0.25 * corners + 0.20 * sharpness + 0.15 * detection + 0.10 * exposure
     }
 }
 
