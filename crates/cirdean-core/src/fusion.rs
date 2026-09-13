@@ -24,10 +24,7 @@ pub fn quad_agreement(a: Quad, b: Quad, max_corner_distance: f32) -> f32 {
     }
 
     let pairs = a.points().into_iter().zip(b.points());
-    let mean_distance = pairs
-        .map(|(left, right)| left.distance(right))
-        .sum::<f32>()
-        / 4.0;
+    let mean_distance = pairs.map(|(left, right)| left.distance(right)).sum::<f32>() / 4.0;
 
     (1.0 - mean_distance / max_corner_distance).clamp(0.0, 1.0)
 }
@@ -49,11 +46,7 @@ fn blend_point(a: Point, b: Point, weight_a: f32, weight_b: f32) -> Point {
 /// Each detector's confidence becomes its geometric blend weight. The final
 /// metrics preserve detector evidence while making cross-detector agreement an
 /// explicit part of the result.
-pub fn fuse_pair(
-    first: Detection,
-    second: Detection,
-    config: FusionConfig,
-) -> Option<Detection> {
+pub fn fuse_pair(first: Detection, second: Detection, config: FusionConfig) -> Option<Detection> {
     let agreement = quad_agreement(first.quad, second.quad, config.max_corner_distance);
     if agreement < config.minimum_agreement {
         return None;
@@ -79,7 +72,10 @@ pub fn fuse_pair(
         geometry_score: (first.metrics.geometry_score * weight_first
             + second.metrics.geometry_score * weight_second)
             / total,
-        temporal_score: first.metrics.temporal_score.max(second.metrics.temporal_score),
+        temporal_score: first
+            .metrics
+            .temporal_score
+            .max(second.metrics.temporal_score),
         agreement_score: agreement,
     };
 
