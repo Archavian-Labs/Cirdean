@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/cirdean-core",
+    "crates/cirdean-vision",
     "apps/cirdean-desktop",
 ]
 
