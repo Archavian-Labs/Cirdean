@@ -2,31 +2,74 @@
 
 Cirdean is a camera-native document acquisition and scanning system written in Rust.
 
-The project aims to combine fast contour-based document detection, a more robust Hough-line fallback detector, temporal stability tracking, full-resolution capture, perspective correction, document enhancement, book scanning, and structured export without tying the core engine to a specific GUI.
+The project combines fast contour-based document detection, a bounded Hough-line fallback, confidence-aware detector fusion, temporal capture logic, book geometry, and eventually full-resolution correction/enhancement without tying the core engine to a specific GUI.
 
 ## Status
 
-Cirdean is in early research and architecture development. The current `research/detection-foundation` branch establishes the Rust workspace and the domain model for detection confidence, geometry, and capture quality.
+Cirdean is in early detection-foundation development. The `research/detection-foundation` branch now contains a working pure-Rust vision foundation rather than architecture placeholders only.
+
+Implemented today:
+
+- dependency-light `cirdean-core` geometry and detector contracts;
+- confidence semantics with optional temporal/cross-detector evidence;
+- confidence-weighted contour/Hough fusion;
+- explicit auto-capture state machine with page-change re-arming;
+- `cirdean-vision` using `image` + `imageproc`;
+- Hbot-inspired multi-path contour preprocessing;
+- candidate ranking using boundary support and document geometry instead of "largest rectangle wins";
+- Camscan-inspired Hough lines, intersections, graph construction, and bounded 4-cycle search;
+- staged hybrid routing so Hough runs only when the fast detector is ambiguous;
+- Hbot-inspired book-gutter estimation improved with plateau centering and confidence;
+- synthetic/unit tests plus CI gates for formatting, Clippy (`-D warnings`), and workspace tests.
+
+## Why hybrid detection?
+
+The two upstream approaches solve different failure modes:
+
+```text
+preview frame
+    |
+    +--> fast contour detector
+    |         |
+    |      confident ---------------------------+
+    |         |                                 |
+    |      ambiguous                            |
+    |         v                                 |
+    +--> bounded Hough fallback                 |
+              |                                 |
+        line intersections                      |
+              |                                 |
+        candidate 4-cycles                      |
+              |                                 |
+        scoring / fusion                        |
+              +---------------------------------+
+                        |
+                 temporal evidence
+                        |
+                 capture quality
+```
+
+The contour path keeps preview latency low. The Hough path can reconstruct document geometry when a closed contour is fragmented. Cirdean bounds Hough line/cycle growth and treats detector agreement as optional evidence rather than forcing both algorithms to run on every frame.
 
 ## Design goals
 
 - **Camera-native:** understand the document from a live stream before capture.
-- **Hybrid detection:** use a fast contour detector first and a Hough-based fallback when confidence is low.
-- **Confidence-driven:** detections carry geometry, edge, temporal, and overall confidence rather than a bare quadrilateral.
+- **Staged hybrid detection:** cheap contour detection first, robust fallback only when useful.
+- **Confidence-driven:** edge, geometry, temporal, and cross-detector evidence remain explicit.
 - **Full-resolution capture:** detect on downscaled preview frames, then process the native-resolution frame.
 - **Non-destructive processing:** preserve source images and model edits as reversible operations.
 - **Modular Rust core:** keep camera, vision, enhancement, document, and UI layers separable.
 - **Cross-platform direction:** avoid coupling the core engine to Windows-only APIs.
 
-## Planned architecture
+## Architecture
 
 ```text
-Camera
-  -> preview frame
-  -> fast contour detector
-  -> Hough fallback detector
+Camera backend
+  -> downscaled preview
+  -> contour fast path
+  -> optional Hough fallback
   -> detector fusion
-  -> temporal corner tracking
+  -> temporal tracking
   -> stability / quality gate
   -> full-resolution capture
   -> perspective correction
@@ -35,15 +78,19 @@ Camera
   -> image / PDF export
 ```
 
-See [`docs/architecture.md`](docs/architecture.md) for the current architecture and [`docs/upstream.md`](docs/upstream.md) for upstream inspiration and licensing notes.
+See [`docs/architecture.md`](docs/architecture.md) for the system architecture and [`docs/upstream-algorithm-study.md`](docs/upstream-algorithm-study.md) for the detailed Hbot/Camscan algorithm study, failure modes, and Cirdean synthesis. Licensing/provenance notes are kept in [`docs/upstream.md`](docs/upstream.md) and [`NOTICE.md`](NOTICE.md).
 
 ## Roadmap
 
 - **v0.1:** camera preview, hybrid boundary detection, confidence model, manual capture, perspective correction, PNG output.
-- **v0.2:** stability tracking, auto-capture, multi-page sessions.
-- **v0.3:** shadow removal, B&W enhancement, denoise, book mode.
+- **v0.2:** temporal tracking, production auto-capture, multi-page sessions.
+- **v0.3:** shadow removal, B&W enhancement, denoise, book mode/dewarping.
 - **v0.4:** page management, non-destructive edits, PDF export.
 - **v0.5:** OCR and searchable documents.
+
+## Toolchain
+
+Cirdean uses Rust edition 2024 with a current minimum Rust version of **1.89** for the selected dependency set.
 
 ## License
 
