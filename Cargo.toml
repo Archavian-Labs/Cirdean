@@ -1,0 +1,27 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/cirdean-core",
+    "crates/cirdean-vision",
+    "apps/cirdean-desktop",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/RetrixAlfariz/Cirdean"
+rust-version = "1.89"
+
+[workspace.dependencies]
+image = "0.25"
+imageproc = "0.27"
+nalgebra = "0.35"
+nokhwa = "0.10"
+iced = "0.14"
+rayon = "1"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+tracing = "0.1"
+lopdf = "0.45"
+pdf-writer = "0.15"

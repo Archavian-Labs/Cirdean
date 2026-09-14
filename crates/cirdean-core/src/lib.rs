@@ -1,0 +1,17 @@
+//! Core domain types for Cirdean's document detection pipeline.
+//!
+//! This crate intentionally stays dependency-light. Image backends and detector
+//! implementations can evolve without leaking GUI or camera concerns into the
+//! public detection and capture model.
+
+pub mod capture;
+pub mod detection;
+pub mod fusion;
+pub mod geometry;
+pub mod quality;
+
+pub use capture::{AutoCaptureConfig, AutoCaptureController, CaptureEvent, CaptureState};
+pub use detection::{Detection, DetectionMetrics, DetectionSource, Detector};
+pub use fusion::{FusionConfig, fuse_pair, quad_agreement};
+pub use geometry::{Point, Quad};
+pub use quality::{CaptureQuality, QualityGate};

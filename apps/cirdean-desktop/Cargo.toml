@@ -1,0 +1,10 @@
+[package]
+name = "cirdean-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+cirdean-core = { path = "../../crates/cirdean-core" }
