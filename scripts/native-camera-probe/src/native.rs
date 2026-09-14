@@ -6,7 +6,7 @@ use windows::{
         Media::MediaFoundation::*,
         System::{
             Com::CoTaskMemFree,
-            WinRT::{RO_INIT_MULTITHREADED, RoInitialize},
+            WinRT::{RO_INIT_MULTITHREADED, RO_INIT_SINGLETHREADED, RoInitialize},
         },
     },
     core::{GUID, Interface},
@@ -68,9 +68,16 @@ impl Drop for MfGuard {
 pub fn run(out: &Path) -> Result<()> {
     fs::create_dir_all(out)?;
     unsafe {
-        RoInitialize(RO_INIT_MULTITHREADED)?;
+        RoInitialize(
+            if std::env::args().nth(2).as_deref() == Some("native-sta") {
+                RO_INIT_SINGLETHREADED
+            } else {
+                RO_INIT_MULTITHREADED
+            },
+        )?;
         MFStartup(MF_VERSION, MFSTARTUP_FULL)?;
     }
+    crate::diagnostics::environment(out)?;
     let _mf = MfGuard;
     let filter = attributes()?;
     unsafe {
@@ -83,7 +90,12 @@ pub fn run(out: &Path) -> Result<()> {
     let mut count = 0;
     eprintln!("Enumerating MF device sources");
     unsafe {
-        MFEnumDeviceSources(&filter, &mut array, &mut count)?;
+        crate::diagnostics::stage(out, "MFEnumDeviceSources")?;
+        crate::diagnostics::call(
+            out,
+            "MFEnumDeviceSources",
+            MFEnumDeviceSources(&filter, &mut array, &mut count),
+        )?;
     }
     // Transfer COM references out, then free the COM-allocated pointer array.
     let devices: Vec<_> = if count == 0 {
@@ -120,10 +132,13 @@ pub fn run(out: &Path) -> Result<()> {
     save(&out.join("mf-devices.json"), &json!(inventory))?;
     let device = selected.ok_or("CM678 missing from MF enumeration")?;
     eprintln!("Activating selected MF camera, converters disabled");
+    crate::diagnostics::stage(out, "IMFActivate.ActivateObject<IMFMediaSource>")?;
     let source = SourceGuard(unsafe {
-        device
-            .ActivateObject::<IMFMediaSource>()
-            .map_err(|e| format!("ActivateObject: {e}"))?
+        crate::diagnostics::call(
+            out,
+            "IMFActivate.ActivateObject<IMFMediaSource>",
+            device.ActivateObject::<IMFMediaSource>(),
+        )?
     });
     eprintln!("MF camera activated; creating Source Reader");
     let config = attributes()?;

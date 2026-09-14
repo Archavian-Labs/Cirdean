@@ -15,12 +15,14 @@ use windows::{
         },
     },
     Storage::Streams::DataReader,
-    Win32::System::WinRT::{RO_INIT_MULTITHREADED, RoInitialize},
+    Win32::System::WinRT::{RO_INIT_SINGLETHREADED, RoInitialize},
     core::Interface,
 };
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+mod diagnostics;
 mod native;
+use diagnostics::Pump;
 
 struct CaptureGuard(MediaCapture);
 impl Drop for CaptureGuard {
@@ -53,9 +55,11 @@ fn save(path: &Path, value: &Value) -> Result<()> {
 
 fn run(out: &Path) -> Result<()> {
     unsafe {
-        RoInitialize(RO_INIT_MULTITHREADED)?;
+        RoInitialize(RO_INIT_SINGLETHREADED)?;
     }
     fs::create_dir_all(out)?;
+    diagnostics::environment(out)?;
+    let _window = diagnostics::ResearchWindow::new()?;
     let mut selected = None;
     let mut inventory = vec![];
     if let Some(inventory_path) = std::env::args().nth(3) {
@@ -75,7 +79,7 @@ fn run(out: &Path) -> Result<()> {
     } else {
         eprintln!("Enumerating WinRT camera devices");
         let devices =
-            DeviceInformation::FindAllAsyncDeviceClass(DeviceClass::VideoCapture)?.get()?;
+            DeviceInformation::FindAllAsyncDeviceClass(DeviceClass::VideoCapture)?.pump()?;
         for device in devices {
             let id = device.Id()?;
             inventory.push(json!({"name": device.Name()?.to_string(), "id": id.to_string()}));
@@ -98,7 +102,17 @@ fn run(out: &Path) -> Result<()> {
     settings.SetStreamingCaptureMode(StreamingCaptureMode::Video)?;
     let camera = CaptureGuard(MediaCapture::new()?);
     eprintln!("Initializing MediaCapture on CM678 (video only)");
-    camera.0.InitializeWithSettingsAsync(&settings)?.get()?;
+    diagnostics::stage(out, "MediaCapture.InitializeWithSettingsAsync")?;
+    let initialize = diagnostics::call(
+        out,
+        "MediaCapture.InitializeWithSettingsAsync.request",
+        camera.0.InitializeWithSettingsAsync(&settings),
+    )?;
+    diagnostics::call(
+        out,
+        "MediaCapture.InitializeWithSettingsAsync.completion",
+        initialize.pump(),
+    )?;
     let controller = camera.0.VideoDeviceController()?;
     let mut modes = json!({});
     let mut chosen = None;
@@ -123,7 +137,7 @@ fn run(out: &Path) -> Result<()> {
     if let Some(p) = chosen {
         controller
             .SetMediaStreamPropertiesAsync(MediaStreamType::Photo, &p)?
-            .get()?;
+            .pump()?;
     } else {
         return Err("No advertised 1920x1080 Photo property; refusing implicit resizing".into());
     }
@@ -143,17 +157,22 @@ fn run(out: &Path) -> Result<()> {
     eprintln!("Photo capabilities saved; preparing low-lag JPEG photo capture");
     let format = ImageEncodingProperties::CreateJpeg()?;
     // No encoded width/height requested: use the explicitly selected source mode.
-    let photos = camera.0.PrepareLowLagPhotoCaptureAsync(&format)?.get()?;
+    let photos = camera.0.PrepareLowLagPhotoCaptureAsync(&format)?.pump()?;
     let capture_result = (|| -> Result<()> {
         let mut records = vec![];
         // Warm up through actual photo acquisitions, then retain ten samples.
         for index in 0..13 {
             let start = Instant::now();
-            let photo = photos.CaptureAsync()?.get()?;
+            let photo = photos.CaptureAsync()?.pump()?;
             let frame = photo.Frame()?;
             let size = u32::try_from(frame.Size()?)?;
             let reader = DataReader::CreateDataReader(&frame.GetInputStreamAt(0)?)?;
-            if reader.LoadAsync(size)?.get()? != size {
+            if reader
+                .LoadAsync(size)?
+                .cast::<windows::Foundation::IAsyncOperation<u32>>()?
+                .pump()?
+                != size
+            {
                 return Err("Incomplete photo read".into());
             }
             let mut bytes = vec![0; size as usize];
@@ -177,7 +196,7 @@ fn run(out: &Path) -> Result<()> {
         }
         Ok(())
     })();
-    let finish_result = photos.FinishAsync()?.get();
+    let finish_result = photos.FinishAsync()?.pump();
     capture_result?;
     finish_result?;
     Ok(())
@@ -193,7 +212,11 @@ fn main() -> Result<()> {
         eprintln!("Native probe exceeded 120 seconds; terminating to release camera handles");
         std::process::exit(124);
     });
-    if std::env::args().nth(2).as_deref() == Some("native") {
+    if std::env::args()
+        .nth(2)
+        .as_deref()
+        .is_some_and(|v| v == "native" || v == "native-sta")
+    {
         native::run(Path::new(&out))
     } else {
         run(Path::new(&out))
