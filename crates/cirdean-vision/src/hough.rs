@@ -5,6 +5,7 @@ use image::GrayImage;
 use imageproc::hough::{LineDetectionOptions, PolarLine, detect_lines};
 
 use crate::{
+    candidates::rank_distinct,
     preprocess::{downscale_long_side, hough_edge_map},
     scoring::{edge_support, geometry_score, order_quad, scale_quad},
 };
@@ -65,8 +66,16 @@ fn intersect_lines(first: PolarLine, second: PolarLine) -> Option<Point> {
 
 fn bounded_lines(edge_map: &GrayImage, config: HoughConfig) -> Vec<PolarLine> {
     let mut last_lines = Vec::new();
+    // Votes count pixels along a line. Keep the same relative line-length gate
+    // when the source is smaller than the configured preview resolution.
+    let scale = (edge_map.width().max(edge_map.height()) as f32
+        / config.preview_long_side.max(1) as f32)
+        .min(1.0);
+    let thresholds = config
+        .vote_thresholds
+        .map(|value| (value as f32 * scale).round().max(1.0) as u32);
 
-    for threshold in config.vote_thresholds {
+    for threshold in thresholds {
         let lines = detect_lines(
             edge_map,
             LineDetectionOptions {
@@ -80,7 +89,8 @@ fn bounded_lines(edge_map: &GrayImage, config: HoughConfig) -> Vec<PolarLine> {
         last_lines = lines;
     }
 
-    let mut threshold = config.vote_thresholds[2].saturating_add(50);
+    let increment = (50.0 * scale).round().max(1.0) as u32;
+    let mut threshold = thresholds[2].saturating_add(increment);
     let ceiling = edge_map.width().max(edge_map.height()).saturating_mul(2);
     while last_lines.len() > config.maximum_lines && threshold <= ceiling {
         last_lines = detect_lines(
@@ -90,7 +100,7 @@ fn bounded_lines(edge_map: &GrayImage, config: HoughConfig) -> Vec<PolarLine> {
                 suppression_radius: config.suppression_radius,
             },
         );
-        threshold = threshold.saturating_add(50);
+        threshold = threshold.saturating_add(increment);
     }
 
     last_lines.truncate(config.maximum_lines);
@@ -237,10 +247,12 @@ impl Default for HoughDetector {
     }
 }
 
-impl Detector<GrayImage> for HoughDetector {
-    type Error = Infallible;
-
-    fn detect(&mut self, frame: &GrayImage) -> Result<Option<Detection>, Self::Error> {
+impl HoughDetector {
+    /// Return distinct source-coordinate hypotheses for ambiguity-aware routing.
+    pub fn detect_candidates(&self, frame: &GrayImage) -> Vec<Detection> {
+        if frame.width() < 3 || frame.height() < 3 {
+            return Vec::new();
+        }
         let scaled = downscale_long_side(frame, self.config.preview_long_side);
         let edge_map = hough_edge_map(&scaled.image);
         let lines = bounded_lines(&edge_map, self.config);
@@ -255,7 +267,7 @@ impl Detector<GrayImage> for HoughDetector {
         let graph = build_graph(&intersections, minimum_corner_distance);
         let cycles = enumerate_cycles(&graph, self.config.maximum_cycles);
 
-        let best = cycles
+        let candidates = cycles
             .into_iter()
             .filter_map(|cycle| {
                 let quad = order_quad([
@@ -286,13 +298,21 @@ impl Detector<GrayImage> for HoughDetector {
                     },
                 })
             })
-            .max_by(|left, right| left.confidence().total_cmp(&right.confidence()));
+            .map(|mut detection| {
+                detection.quad =
+                    scale_quad(detection.quad, scaled.source_scale_x, scaled.source_scale_y);
+                detection
+            })
+            .collect();
+        rank_distinct(candidates, frame.width().max(frame.height()) as f32 * 0.02)
+    }
+}
 
-        Ok(best.map(|mut detection| {
-            detection.quad =
-                scale_quad(detection.quad, scaled.source_scale_x, scaled.source_scale_y);
-            detection
-        }))
+impl Detector<GrayImage> for HoughDetector {
+    type Error = Infallible;
+
+    fn detect(&mut self, frame: &GrayImage) -> Result<Option<Detection>, Self::Error> {
+        Ok(self.detect_candidates(frame).into_iter().next())
     }
 }
 

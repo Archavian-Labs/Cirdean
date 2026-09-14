@@ -5,6 +5,7 @@
 //! Cirdean adds candidate scoring, bounded combinatorics and staged execution.
 
 pub mod book;
+mod candidates;
 pub mod contour;
 pub mod hough;
 pub mod hybrid;

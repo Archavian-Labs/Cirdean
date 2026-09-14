@@ -116,34 +116,30 @@ fn has_edge_near(edge_map: &GrayImage, x: i32, y: i32, radius: i32) -> bool {
     false
 }
 
-/// Fraction of sampled quadrilateral boundary positions supported by edge pixels.
+/// Balanced boundary evidence: half the mean side support plus half the weakest
+/// side. Three complete sides must not conceal a fourth invented by Hough.
 pub fn edge_support(edge_map: &GrayImage, quad: Quad, search_radius: i32) -> f32 {
     let points = quad.points();
-    let mut supported = 0_u32;
-    let mut samples = 0_u32;
+    let mut sides = [0.0_f32; 4];
 
     for index in 0..4 {
         let start = points[index];
         let end = points[(index + 1) % 4];
         let distance = start.distance(end);
         let steps = (distance.ceil() as usize).clamp(8, 256);
+        let mut supported = 0_u32;
 
         for step in 0..=steps {
             let t = step as f32 / steps as f32;
             let x = start.x + (end.x - start.x) * t;
             let y = start.y + (end.y - start.y) * t;
-            samples += 1;
             if has_edge_near(edge_map, x.round() as i32, y.round() as i32, search_radius) {
                 supported += 1;
             }
         }
+        sides[index] = supported as f32 / (steps + 1) as f32;
     }
-
-    if samples == 0 {
-        0.0
-    } else {
-        supported as f32 / samples as f32
-    }
+    0.5 * (sides.iter().sum::<f32>() / 4.0 + sides.into_iter().fold(1.0, f32::min))
 }
 
 #[cfg(test)]
@@ -151,6 +147,27 @@ mod tests {
     use super::*;
     use image::Luma;
     use imageproc::{drawing::draw_line_segment_mut, point::Point as ImagePoint};
+
+    #[test]
+    fn three_complete_sides_do_not_hide_a_missing_fourth_side() {
+        let mut image = GrayImage::new(120, 120);
+        let quad = Quad::new(
+            Point::new(10.0, 10.0),
+            Point::new(110.0, 10.0),
+            Point::new(110.0, 110.0),
+            Point::new(10.0, 110.0),
+        );
+        let points = quad.points();
+        for side in 0..3 {
+            let a = points[side];
+            let b = points[side + 1];
+            draw_line_segment_mut(&mut image, (a.x, a.y), (b.x, b.y), Luma([255]));
+        }
+        // The old pooled score was about 0.75 for this unsupported rectangle.
+        assert!(edge_support(&image, quad, 1) < 0.45);
+        draw_line_segment_mut(&mut image, (10.0, 110.0), (10.0, 10.0), Luma([255]));
+        assert!(edge_support(&image, quad, 1) > 0.95);
+    }
 
     #[test]
     fn geometry_prefers_large_regular_document() {

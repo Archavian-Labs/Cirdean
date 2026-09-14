@@ -6,6 +6,8 @@ This document records the engineering study used to evolve Cirdean beyond a dire
 
 Studied upstream: `abhishekdhital/hbot`.
 
+Source inspected on 2026-09-15: [scanner.py at 0575c0b](https://github.com/abhishekdhital/hbot/blob/0575c0bf6aed77884c43bc9191574dc8607a05e4/hbot/scanner.py).
+
 ### Document boundary detector
 
 Hbot reduces large images so the longest side is about 700 pixels, converts to grayscale, applies a small Gaussian blur, then runs two alternative edge strategies:
@@ -45,6 +47,8 @@ Cirdean treats the gutter location as an estimate with confidence rather than an
 ## Camscan
 
 Studied upstream: `suhren/camscan`.
+
+Source inspected on 2026-09-15: [scanner.py at 8c06d74](https://github.com/suhren/camscan/blob/8c06d742dc77ad2c6768fdc873a0755764f1bb16/camscan/scanner.py).
 
 ### Hough / graph document detector
 
@@ -122,6 +126,39 @@ preview frame
 - Confidence is explicit in the public domain model.
 
 ## Confidence semantics
+
+### Implemented refinement: ambiguity-aware hybrid
+
+Both detectors now retain ranked candidates rather than discarding all but the
+winner. Hypotheses within 2% of the source's longest side in mean cyclic corner
+distance are deduplicated, preserving the strongest measured boundary. This
+prevents duplicate preprocessing views of the same page from hiding a second page.
+
+Boundary evidence is `0.5 * mean(side_support) + 0.5 * min(side_support)`.
+A rectangle with three complete sides and one absent side receives roughly 0.375,
+instead of the old pooled score near 0.75. Partial gaps on every side remain possible;
+the algorithm does not demand a fully closed contour.
+
+The hybrid requires edge support >= 0.55 and confidence >= 0.65. It skips Hough only
+when the best contour reaches 0.88 and exceeds the next distinct candidate by at
+least 0.04. These defaults are heuristics, not calibrated probabilities.
+
+Fallback compares all eligible candidates. Cross-detector agreement contributes
+evidence; conflicting candidates receive the measured low agreement instead of
+silently losing this information. Matching hypotheses retain a measured quad
+instead of averaging corners whose resulting image support has never been tested.
+The core's separate `fuse_pair` geometry utility remains available, but the hybrid
+now fuses evidence without moving corners. After ranking, a gap below 0.04 returns
+`None`: callers must treat this as unresolved, not proof that no document exists.
+
+Hough vote thresholds scale down with preview dimensions for small input frames.
+The backend also uses a positive Canny low threshold: imageproc 0.27's hysteresis
+accepts zero-gradient pixels at threshold zero and can traverse outside the image.
+OpenCV's literal `(0, 84)` thresholds therefore cannot be transplanted safely.
+
+This refinement has measured trade-offs and remaining misses; see
+[detector evaluation](detector-evaluation.md). It does not solve semantic page
+selection, temporal tracking, or calibration on diverse camera data.
 
 Cirdean distinguishes mandatory evidence from optional evidence.
 

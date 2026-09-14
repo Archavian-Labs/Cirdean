@@ -61,12 +61,29 @@ pub fn hough_edge_map(gray: &GrayImage) -> GrayImage {
     // Radius 6 gives a 13x13 grayscale morphological neighborhood, matching the
     // broad structural cleanup used by Camscan before Canny/Hough processing.
     let closed = grayscale_close(&blurred, &Mask::square(6));
-    canny(&closed, 0.0, 84.0)
+    // imageproc 0.27 hysteresis follows values >= low threshold. Zero admits
+    // suppressed pixels, floods to the border, and indexes outside the image.
+    // OpenCV's zero threshold cannot be transferred literally to this backend.
+    canny(&closed, 1.0, 84.0)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hough_hysteresis_does_not_flood_zero_gradient_background() {
+        let mut image = GrayImage::new(80, 80);
+        for y in 20..60 {
+            for x in 20..60 {
+                image.put_pixel(x, y, image::Luma([240]));
+            }
+        }
+        let edges = hough_edge_map(&image);
+        assert!(edges.pixels().any(|pixel| pixel[0] != 0));
+        assert_eq!(edges.get_pixel(0, 0)[0], 0);
+        assert!(edges.pixels().filter(|pixel| pixel[0] != 0).count() < 800);
+    }
 
     #[test]
     fn downscale_preserves_coordinate_mapping() {

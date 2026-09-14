@@ -1,0 +1,16 @@
+detector,image,status,mean_corner_error_px,max_corner_error_px,pass_30px,confidence,elapsed_ms
+contour,IMG_1842.jpg,none,NaN,NaN,false,NaN,42.983
+hough,IMG_1842.jpg,detected,2.55,3.08,true,0.991,16.789
+hybrid,IMG_1842.jpg,detected,2.55,3.08,true,0.991,58.910
+contour,IMG_1843.jpg,none,NaN,NaN,false,NaN,47.341
+hough,IMG_1843.jpg,detected,2.85,4.98,true,0.907,15.906
+hybrid,IMG_1843.jpg,detected,2.85,4.98,true,0.907,62.923
+contour,IMG_1844.jpg,none,NaN,NaN,false,NaN,44.803
+hough,IMG_1844.jpg,none,NaN,NaN,false,NaN,15.881
+hybrid,IMG_1844.jpg,none,NaN,NaN,false,NaN,61.089
+contour,IMG_1845.jpg,none,NaN,NaN,false,NaN,44.730
+hough,IMG_1845.jpg,detected,4.91,6.56,true,0.838,16.428
+hybrid,IMG_1845.jpg,detected,4.91,6.56,true,0.838,61.154
+contour,IMG_1846.jpg,detected,3.98,9.36,true,0.711,43.070
+hough,IMG_1846.jpg,detected,3.29,5.77,true,0.855,15.904
+hybrid,IMG_1846.jpg,detected,3.29,5.77,true,0.853,59.432

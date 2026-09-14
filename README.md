@@ -19,6 +19,8 @@ Implemented today:
 - candidate ranking using boundary support and document geometry instead of "largest rectangle wins";
 - Camscan-inspired Hough lines, intersections, graph construction, and bounded 4-cycle search;
 - staged hybrid routing so Hough runs only when the fast detector is ambiguous;
+- distinct candidate ranking, ambiguity rejection, and weakest-side boundary validation;
+- evidence fusion that preserves measured corners, with resolution-scaled Hough votes;
 - Hbot-inspired book-gutter estimation improved with plateau centering and confidence;
 - synthetic/unit tests plus CI gates for formatting, Clippy (`-D warnings`), and workspace tests.
 
@@ -79,6 +81,10 @@ Camera backend
 ```
 
 See [`docs/architecture.md`](docs/architecture.md) for the system architecture and [`docs/upstream-algorithm-study.md`](docs/upstream-algorithm-study.md) for the detailed Hbot/Camscan algorithm study, failure modes, and Cirdean synthesis. Licensing/provenance notes are kept in [`docs/upstream.md`](docs/upstream.md) and [`NOTICE.md`](NOTICE.md).
+
+The latest measured comparison, reproduction commands, and remaining failures are in
+[`docs/detector-evaluation.md`](docs/detector-evaluation.md). The benchmark compares
+Cirdean implementations; it does not establish superiority over the upstream Python applications.
 
 ## Roadmap
 

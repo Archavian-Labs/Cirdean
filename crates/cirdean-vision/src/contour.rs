@@ -8,6 +8,7 @@ use imageproc::{
 };
 
 use crate::{
+    candidates::rank_distinct,
     preprocess::{contour_edge_maps, downscale_long_side},
     scoring::{edge_support, geometry_score, order_quad, scale_quad},
 };
@@ -41,7 +42,7 @@ impl ContourDetector {
         Self { config }
     }
 
-    fn detect_on_map(&self, edge_map: &GrayImage) -> Option<Detection> {
+    fn detect_on_map(&self, edge_map: &GrayImage) -> Vec<Detection> {
         let mut contours = find_contours::<i32>(edge_map);
         contours.retain(|contour| {
             contour.border_type == BorderType::Outer && contour.points.len() >= 4
@@ -97,7 +98,27 @@ impl ContourDetector {
                     },
                 })
             })
-            .max_by(|left, right| left.confidence().total_cmp(&right.confidence()))
+            .collect()
+    }
+
+    /// Ranked, distinct hypotheses in source coordinates, retained so the
+    /// hybrid router can distinguish high confidence from low ambiguity.
+    pub fn detect_candidates(&self, frame: &GrayImage) -> Vec<Detection> {
+        if frame.width() < 3 || frame.height() < 3 {
+            return Vec::new();
+        }
+        let scaled = downscale_long_side(frame, self.config.preview_long_side);
+        let maps = contour_edge_maps(&scaled.image);
+        let candidates = maps
+            .iter()
+            .flat_map(|edge_map| self.detect_on_map(edge_map))
+            .map(|mut detection| {
+                detection.quad =
+                    scale_quad(detection.quad, scaled.source_scale_x, scaled.source_scale_y);
+                detection
+            })
+            .collect();
+        rank_distinct(candidates, frame.width().max(frame.height()) as f32 * 0.02)
     }
 }
 
@@ -111,19 +132,7 @@ impl Detector<GrayImage> for ContourDetector {
     type Error = Infallible;
 
     fn detect(&mut self, frame: &GrayImage) -> Result<Option<Detection>, Self::Error> {
-        let scaled = downscale_long_side(frame, self.config.preview_long_side);
-        let maps = contour_edge_maps(&scaled.image);
-
-        let best = maps
-            .iter()
-            .filter_map(|edge_map| self.detect_on_map(edge_map))
-            .max_by(|left, right| left.confidence().total_cmp(&right.confidence()));
-
-        Ok(best.map(|mut detection| {
-            detection.quad =
-                scale_quad(detection.quad, scaled.source_scale_x, scaled.source_scale_y);
-            detection
-        }))
+        Ok(self.detect_candidates(frame).into_iter().next())
     }
 }
 
